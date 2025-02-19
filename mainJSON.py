@@ -8,6 +8,7 @@ import pandas as pd
 import PySimpleGUI as sg
 import json
 from datetime import datetime
+from sec_scraper.filing_processor import combine_selected_filings
 
 def create_gui():
     filing_types = [
@@ -144,9 +145,14 @@ def runtime(cik, window):
                 if f'-CB-{accession_numbers[i]}-' in values and values[f'-CB-{accession_numbers[i]}-']
             ]
             print(f"Selected {len(selected_filings)} filings")
-            #TODO: do something with the selected filings
-            for filing in selected_filings:
-                print(f"Selected: {filing['date']} - {filing['type']} - {filing['description']}")
+            
+            # Process the selected filings
+            if selected_filings:
+                combined_data = combine_selected_filings(selected_filings)
+                if combined_data is not None:
+                    sg.popup(f"Successfully exported {len(selected_filings)} filings to Excel!")
+                else:
+                    sg.popup("Error processing filings. Check console for details.")
         
         # Handle clicking on links
         if event.startswith('-LINK-'):
