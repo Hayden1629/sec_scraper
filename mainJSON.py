@@ -8,7 +8,7 @@ import pandas as pd
 import PySimpleGUI as sg
 import json
 from datetime import datetime
-from sec_scraper.filing_processor import combine_selected_filings
+from filing_processor import combine_selected_filings
 
 def create_gui():
     filing_types = [
@@ -102,9 +102,9 @@ def runtime(cik, window):
         accession = accession_numbers[i]
         description = descriptions[i]
         
-        # Construct the filing URL
+        # Construct the filing URL - point to index page instead of XML
         accession_formatted = accession.replace('-', '')
-        link = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_formatted}/{description}"
+        link = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_formatted}/{accession_formatted}-index.htm"
         
         # Create a unique key for each checkbox
         checkbox_key = f'-CB-{accession}-'
@@ -139,7 +139,7 @@ def runtime(cik, window):
                     'type': filing_types[i],
                     'accession': accession_numbers[i],
                     'description': descriptions[i],
-                    'link': f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_numbers[i].replace('-', '')}/{descriptions[i]}"
+                    'link': f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_numbers[i].replace('-', '')}/{accession_numbers[i].replace('-', '')}-index.htm"
                 }
                 for i in range(len(dates))
                 if f'-CB-{accession_numbers[i]}-' in values and values[f'-CB-{accession_numbers[i]}-']

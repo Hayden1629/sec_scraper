@@ -18,54 +18,92 @@ def process_13f_filing(filing_info):
         pd.DataFrame: Combined table data from the filing
     """
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        'User-Agent': 'Hayden Herstrom herstromresource@gmail.com',
+        'Accept': 'application/json',
+        'Host': 'www.sec.gov'
     }
     
     try:
         # Add delay to respect SEC rate limits
         time.sleep(0.1)
         
-        # Get the filing page
+        # First get the index page to find the correct XML file
+        print(f"Fetching index page: {filing_info['link']}")
         response = requests.get(filing_info['link'], headers=headers)
         response.raise_for_status()
         
-        # Parse the HTML
+        # Print the content for debugging
+        print("Index page content:")
+        print(response.text[:1000])  # Print first 1000 chars for debugging
+        
+        # Parse the index page to find the XML file
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # Find all tables in the document
-        tables = pd.read_html(response.text)
+        # Debug: Print all table rows
+        print("\nFound table rows:")
+        for row in soup.find_all('tr'):
+            print(row.text.strip())
+            
+        # Look for the XML file in the table
+        xml_link = None
+        for row in soup.find_all('tr'):
+            cells = row.find_all('td')
+            for cell in cells:
+                if cell.text and '.xml' in cell.text and 'primary_doc' not in cell.text:
+                    print(f"\nFound potential XML file: {cell.text}")
+                    xml_link = cell.find('a')['href'] if cell.find('a') else None
+                    if xml_link:
+                        print(f"Found XML link: {xml_link}")
+                    break
+            if xml_link:
+                break
         
-        # The main holdings table is typically the largest table
-        # We'll get all tables and combine them, removing any that don't match our expected format
-        holdings_data = []
-        
-        for table in tables:
-            # Check if this looks like a holdings table
-            if len(table.columns) >= 7:  # 13F tables typically have 7+ columns
-                # Clean up column names
-                table.columns = table.columns.str.strip()
-                
-                # Add metadata
-                table['Filing_Date'] = filing_info['date']
-                table['Accession_Number'] = filing_info['accession']
-                
-                holdings_data.append(table)
-        
-        if not holdings_data:
-            print(f"No valid tables found in filing {filing_info['accession']}")
+        if not xml_link:
+            print(f"Could not find XML table in filing {filing_info['accession']}")
             return None
             
-        # Combine all valid tables
-        combined_data = pd.concat(holdings_data, ignore_index=True)
+        # Construct the full URL for the XML file
+        if xml_link.startswith('/'):
+            xml_url = f"https://www.sec.gov{xml_link}"
+        else:
+            xml_url = xml_link
+            
+        print(f"Fetching: {xml_url}")
         
-        # Clean up the data
-        # Remove any rows that are all NaN
-        combined_data = combined_data.dropna(how='all')
+        # Get the XML file
+        response = requests.get(xml_url, headers=headers)
+        response.raise_for_status()
         
-        # Reset the index
-        combined_data = combined_data.reset_index(drop=True)
+        # Parse the XML
+        soup = BeautifulSoup(response.text, 'xml')
         
-        return combined_data
+        # Extract data from XML
+        holdings_data = []
+        for info_table in soup.find_all('infoTable'):
+            holding = {
+                'nameOfIssuer': info_table.find('nameOfIssuer').text if info_table.find('nameOfIssuer') else '',
+                'titleOfClass': info_table.find('titleOfClass').text if info_table.find('titleOfClass') else '',
+                'cusip': info_table.find('cusip').text if info_table.find('cusip') else '',
+                'value': info_table.find('value').text if info_table.find('value') else '',
+                'shares': info_table.find('sshPrnamt').text if info_table.find('sshPrnamt') else '',
+                'shareType': info_table.find('sshPrnamtType').text if info_table.find('sshPrnamtType') else '',
+                'investmentDiscretion': info_table.find('investmentDiscretion').text if info_table.find('investmentDiscretion') else '',
+                'votingAuthority': info_table.find('Sole').text if info_table.find('Sole') else '0'
+            }
+            holdings_data.append(holding)
+        
+        if not holdings_data:
+            print(f"No holdings found in filing {filing_info['accession']}")
+            return None
+            
+        # Convert to DataFrame
+        df = pd.DataFrame(holdings_data)
+        
+        # Add metadata
+        df['Filing_Date'] = filing_info['date']
+        df['Accession_Number'] = filing_info['accession']
+        
+        return df
         
     except Exception as e:
         print(f"Error processing filing {filing_info['accession']}: {str(e)}")
