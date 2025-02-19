@@ -3,6 +3,10 @@ Parse SEC JSON API for all files
 filter to certain files
 """
 
+#https://www.sec.gov/Archives/edgar/data/0001067983/000095012325002701/0000950123-25-002701-index.html
+#https://www.sec.gov/Archives/edgar/data/0001067983/000095012325002701/000095012325002701-index.htm
+
+
 import requests
 import pandas as pd
 import PySimpleGUI as sg
@@ -102,9 +106,9 @@ def runtime(cik, window):
         accession = accession_numbers[i]
         description = descriptions[i]
         
-        # Construct the filing URL - point to index page instead of XML
+        # Construct the filing URL - FIXED VERSION
         accession_formatted = accession.replace('-', '')
-        link = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_formatted}/{accession_formatted}-index.htm"
+        link = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_formatted}/{accession}-index.htm"
         
         # Create a unique key for each checkbox
         checkbox_key = f'-CB-{accession}-'
@@ -123,8 +127,6 @@ def runtime(cik, window):
         [sg.Button('Export Selected'), sg.Button('Close')]
     ], resizable=True, finalize=True)
     
-    selected_filings = []
-    
     while True:
         event, values = filing_window.read()
         
@@ -139,20 +141,13 @@ def runtime(cik, window):
                     'type': filing_types[i],
                     'accession': accession_numbers[i],
                     'description': descriptions[i],
-                    'link': f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_numbers[i].replace('-', '')}/{accession_numbers[i].replace('-', '')}-index.htm"
+                    'link': f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_numbers[i].replace('-', '')}/{accession_numbers[i]}-index.htm"
                 }
                 for i in range(len(dates))
                 if f'-CB-{accession_numbers[i]}-' in values and values[f'-CB-{accession_numbers[i]}-']
             ]
-            print(f"Selected {len(selected_filings)} filings")
-            
-            # Process the selected filings
-            if selected_filings:
-                combined_data = combine_selected_filings(selected_filings)
-                if combined_data is not None:
-                    sg.popup(f"Successfully exported {len(selected_filings)} filings to Excel!")
-                else:
-                    sg.popup("Error processing filings. Check console for details.")
+            print(f"\nSelected {len(selected_filings)} filings:")
+            combine_selected_filings(selected_filings)
         
         # Handle clicking on links
         if event.startswith('-LINK-'):

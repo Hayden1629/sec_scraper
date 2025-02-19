@@ -1,11 +1,14 @@
+#too convoluted before, I will fix.
 """
-Process 13F filings and extract table data into pandas DataFrames
+Process SEC filings and create visualizations of holdings over time
 """
 
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 import time
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 def process_13f_filing(filing_info):
     """
@@ -111,34 +114,130 @@ def process_13f_filing(filing_info):
 
 def combine_selected_filings(selected_filings):
     """
-    Process multiple 13F filings and combine their data
+    Process multiple 13F filings and create visualizations
     
     Args:
         selected_filings (list): List of filing info dictionaries
-    
-    Returns:
-        pd.DataFrame: Combined data from all filings
     """
-    all_data = []
+    all_holdings = []
     
     for filing in selected_filings:
-        if filing['type'] == '13F-HR':  # Only process 13F filings
-            print(f"Processing filing from {filing['date']}...")
-            df = process_13f_filing(filing)
-            if df is not None:
-                all_data.append(df)
+        if filing['type'] != '13F-HR':
+            continue
+            
+        print(f"\nProcessing {filing['date']}")
+        
+        try:
+            # Get the index page
+            headers = {
+                'User-Agent': 'Your Company Name yourname@email.com',
+                'Accept': 'text/html,application/xhtml+xml',
+                'Host': 'www.sec.gov'
+            }
+            
+            response = requests.get(filing['link'], headers=headers)
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # Find the XML file
+            for row in soup.find_all('tr'):
+                cells = row.find_all('td')
+                if len(cells) >= 3:
+                    filename = cells[2].text.strip()
+                    if filename.endswith('.xml') and 'primary_doc' not in filename:
+                        # Found the InfoTable XML
+                        xml_url = f"{filing['link'].rsplit('/', 1)[0]}/{filename}"
+                        
+                        # Get and parse the XML
+                        xml_response = requests.get(xml_url, headers=headers)
+                        xml_soup = BeautifulSoup(xml_response.text, 'xml')
+                        
+                        # Extract holdings data
+                        for info_table in xml_soup.find_all('infoTable'):
+                            holding = {
+                                'date': filing['date'],
+                                'name': info_table.find('nameOfIssuer').text,
+                                'value': float(info_table.find('value').text),
+                                'shares': float(info_table.find('sshPrnamt').text),
+                                'type': info_table.find('titleOfClass').text
+                            }
+                            all_holdings.append(holding)
+                        break
+            
+            time.sleep(0.1)  # Respect SEC rate limits
+            
+        except Exception as e:
+            print(f"Error processing filing: {str(e)}")
+            continue
     
-    if not all_data:
-        print("No data was successfully processed")
-        return None
+    if not all_holdings:
+        print("No holdings data found")
+        return
     
-    # Combine all the data
-    combined_df = pd.concat(all_data, ignore_index=True)
+    # Convert to DataFrame
+    df = pd.DataFrame(all_holdings)
     
-    # Export to Excel
+    # Create visualizations
+    create_holdings_visualizations(df)
+    
+    # Save to Excel for further analysis
     timestamp = time.strftime("%Y%m%d-%H%M%S")
-    output_file = f"13F_holdings_{timestamp}.xlsx"
-    combined_df.to_excel(output_file, index=False)
-    print(f"Data exported to {output_file}")
+    df.to_excel(f'holdings_analysis_{timestamp}.xlsx', index=False)
+    print(f"\nData saved to holdings_analysis_{timestamp}.xlsx")
+
+def create_holdings_visualizations(df):
+    """Create various visualizations of the holdings data"""
     
-    return combined_df
+    # Set style
+    plt.style.use('seaborn')
+    
+    # 1. Top 10 Holdings Over Time
+    plt.figure(figsize=(15, 8))
+    top_companies = df.groupby('name')['value'].sum().nlargest(10).index
+    pivot_data = df[df['name'].isin(top_companies)].pivot(index='date', columns='name', values='value')
+    pivot_data.plot(kind='line', marker='o')
+    plt.title('Top 10 Holdings Over Time')
+    plt.xlabel('Date')
+    plt.ylabel('Value ($ Thousands)')
+    plt.xticks(rotation=45)
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
+    plt.savefig('top_holdings_trend.png')
+    
+    # 2. Latest Portfolio Composition
+    plt.figure(figsize=(12, 8))
+    latest_date = df['date'].max()
+    latest_holdings = df[df['date'] == latest_date]
+    top_latest = latest_holdings.nlargest(10, 'value')
+    plt.pie(top_latest['value'], labels=top_latest['name'], autopct='%1.1f%%')
+    plt.title(f'Top 10 Holdings Composition ({latest_date})')
+    plt.axis('equal')
+    plt.savefig('portfolio_composition.png')
+    
+    # 3. Holdings Changes Heatmap
+    plt.figure(figsize=(15, 8))
+    pivot_all = df.pivot_table(
+        index='date',
+        columns='name',
+        values='value',
+        aggfunc='sum'
+    ).fillna(0)
+    
+    # Calculate percentage changes
+    pct_changes = pivot_all.pct_change()
+    
+    # Plot heatmap for top holdings
+    sns.heatmap(
+        pct_changes[top_companies].T,
+        cmap='RdYlGn',
+        center=0,
+        annot=True,
+        fmt='.2%'
+    )
+    plt.title('Quarterly Holdings Changes (%)')
+    plt.tight_layout()
+    plt.savefig('holdings_changes_heatmap.png')
+    
+    print("\nVisualizations saved as:")
+    print("- top_holdings_trend.png")
+    print("- portfolio_composition.png")
+    print("- holdings_changes_heatmap.png")
