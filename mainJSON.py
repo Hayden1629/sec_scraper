@@ -26,7 +26,7 @@ def create_gui():
         [sg.Text("Select Filing Types:")],
         [sg.Listbox(filing_types, size=(30, 7), key='-FILINGS-', select_mode=sg.LISTBOX_SELECT_MODE_MULTIPLE, default_values=['All Filings'])],
         [sg.Button("Go"), sg.Button("Close")],
-        [sg.Multiline(size=(80, 20), key='-OUTPUT-', disabled=True, reroute_stdout=True)]
+        [sg.Multiline(size=(80, 10), key='-OUTPUT-', disabled=True, reroute_stdout=True)]
     ]
     window = sg.Window("Scraper JSON", layout, resizable=True)
     while True:
@@ -84,10 +84,8 @@ def runtime(cik, window):
     filing_types = filings.get('form', [])
     descriptions = filings.get('primaryDocument', [])
     
-    output += "Latest Filings:\n"
-    output += "-" * 80 + "\n"
-    
-    # Combine the data
+    # Create layout for filings with checkboxes
+    filing_layout = []
     for i in range(len(dates)):
         filing_type = filing_types[i]
         
@@ -95,11 +93,10 @@ def runtime(cik, window):
         if 'All Filings' not in selected_types and filing_type not in selected_types:
             continue
             
-        # Updated date parsing to handle ISO format
         try:
             date = datetime.strptime(dates[i].replace('T', ' ').replace('Z', ''), '%Y-%m-%d %H:%M:%S.%f').strftime('%Y-%m-%d')
         except ValueError:
-            date = dates[i].split('T')[0]  # Fallback to just getting the date part
+            date = dates[i].split('T')[0]
             
         accession = accession_numbers[i]
         description = descriptions[i]
@@ -108,20 +105,59 @@ def runtime(cik, window):
         accession_formatted = accession.replace('-', '')
         link = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_formatted}/{description}"
         
-        output += f"Date: {date}\n"
-        output += f"Type: {filing_type}\n"
-        output += f"Link: {link}\n"
-        output += "-" * 80 + "\n"
+        # Create a unique key for each checkbox
+        checkbox_key = f'-CB-{accession}-'
+        
+        # Add checkbox and filing info to layout
+        filing_layout.append([
+            sg.Checkbox('', key=checkbox_key),
+            sg.Text(f"Date: {date} | Type: {filing_type} | Filing: {description}", size=(80, None)),
+            sg.Text(link, enable_events=True, key=f'-LINK-{accession}-', text_color='blue', font=('Helvetica', 10, 'underline'))
+        ])
     
-    window['-OUTPUT-'].update(output)
+    # Create a new window for the filings
+    filing_window = sg.Window('Filing Selection', [
+        [sg.Text("Select filings to export:")],
+        [sg.Column(filing_layout, scrollable=True, vertical_scroll_only=True, size=(800, 400))],
+        [sg.Button('Export Selected'), sg.Button('Close')]
+    ], resizable=True, finalize=True)
+    
+    selected_filings = []
+    
+    while True:
+        event, values = filing_window.read()
+        
+        if event == sg.WIN_CLOSED or event == 'Close':
+            break
+            
+        if event == 'Export Selected':
+            # Get all selected filings
+            selected_filings = [
+                {
+                    'date': dates[i],
+                    'type': filing_types[i],
+                    'accession': accession_numbers[i],
+                    'description': descriptions[i],
+                    'link': f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_numbers[i].replace('-', '')}/{descriptions[i]}"
+                }
+                for i in range(len(dates))
+                if f'-CB-{accession_numbers[i]}-' in values and values[f'-CB-{accession_numbers[i]}-']
+            ]
+            print(f"Selected {len(selected_filings)} filings")
+            #TODO: do something with the selected filings
+            for filing in selected_filings:
+                print(f"Selected: {filing['date']} - {filing['type']} - {filing['description']}")
+        
+        # Handle clicking on links
+        if event.startswith('-LINK-'):
+            accession = event.replace('-LINK-', '').replace('-', '')
+            import webbrowser
+            webbrowser.open(filing_window[event].get())
+    
+    filing_window.close()
 
 def print_debug_file(data):
-    """
-    Write JSON data to a debug file with formatted output.
-    
-    Args:
-        data: The JSON data from SEC
-    """
+    #Write JSON data to a debug file with formatted output.
     with open('debug.txt', 'w') as f:
         json.dump(data, f, indent=4)
 
