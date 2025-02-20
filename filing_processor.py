@@ -138,15 +138,20 @@ def combine_selected_filings(selected_filings, company_name):
     
     print(f"\nProcessing {len(valid_filings)} 13F-HR filings...")
     
-    # Create reports directory if it doesn't exist
+    # Create reports directory and subfolders
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     clean_company_name = "".join(c for c in company_name if c.isalnum() or c in (' ', '-', '_')).strip()
     reports_dir = f"reports_{clean_company_name}_{timestamp}"
     os.makedirs(reports_dir, exist_ok=True)
     
-    all_holdings = []
+    # Create individual filings subfolder
+    filings_dir = os.path.join(reports_dir, "individual_filings")
+    os.makedirs(filings_dir, exist_ok=True)
     
-    for filing in valid_filings:  # Use filtered list instead
+    all_holdings = []
+    individual_dfs = []
+    
+    for filing in valid_filings:
         print(f"\nProcessing {filing['date']}")
         
         try:
@@ -174,18 +179,33 @@ def combine_selected_filings(selected_filings, company_name):
                         xml_soup = BeautifulSoup(xml_response.text, 'xml')
                         
                         # Extract holdings data
+                        filing_holdings = []  # Store holdings for this specific filing
                         for info_table in xml_soup.find_all('infoTable'):
                             holding = {
                                 'date': filing['date'],
                                 'name': info_table.find('nameOfIssuer').text,
                                 'value': float(info_table.find('value').text),
                                 'shares': float(info_table.find('sshPrnamt').text),
-                                'type': info_table.find('titleOfClass').text
+                                'type': info_table.find('titleOfClass').text,
+                                'cusip': info_table.find('cusip').text  # Adding CUSIP for verification
                             }
+                            filing_holdings.append(holding)
                             all_holdings.append(holding)
+                        
+                        # Create DataFrame for this filing and save it
+                        if filing_holdings:
+                            filing_df = pd.DataFrame(filing_holdings)
+                            individual_dfs.append(filing_df)
+                            
+                            # Save individual filing data to the subfolder
+                            filing_date = pd.to_datetime(filing['date']).strftime('%Y%m%d')
+                            filing_path = os.path.join(filings_dir, f'filing_{filing_date}.xlsx')
+                            filing_df.to_excel(filing_path, index=False)
+                            print(f"Saved individual filing data to {filing_path}")
+                        
+                        time.sleep(0.1)
+                        
                         break
-            
-            time.sleep(0.1)  # Respect SEC rate limits
             
         except Exception as e:
             print(f"Error processing filing: {str(e)}")
@@ -195,15 +215,43 @@ def combine_selected_filings(selected_filings, company_name):
         print("No holdings data found")
         return
     
-    # Convert to DataFrame
+    # Convert to DataFrame and save consolidated data
     df = pd.DataFrame(all_holdings)
     
-    # Update Excel save location
+    # Create a verification spreadsheet showing consolidation
+    verification_df = pd.DataFrame()
+    for i, filing_df in enumerate(individual_dfs):
+        # Get the date for this filing
+        filing_date = filing_df['date'].iloc[0]
+        
+        # Group by company and sum values
+        summary = filing_df.groupby('name').agg({
+            'value': 'sum',
+            'shares': 'sum',
+            'cusip': 'first'  # Keep CUSIP for reference
+        }).reset_index()
+        
+        # Rename columns to include date
+        summary.columns = ['name', f'value_{filing_date}', f'shares_{filing_date}', f'cusip']
+        
+        if i == 0:
+            verification_df = summary
+        else:
+            verification_df = verification_df.merge(summary[['name', f'value_{filing_date}', f'shares_{filing_date}']], 
+                                                 on='name', 
+                                                 how='outer')
+    
+    # Save verification spreadsheet to the individual_filings subfolder
+    verification_path = os.path.join(filings_dir, 'consolidation_verification.xlsx')
+    verification_df.to_excel(verification_path, index=False)
+    print(f"\nSaved consolidation verification to {verification_path}")
+    
+    # Save main analysis file
     excel_path = os.path.join(reports_dir, f'holdings_analysis.xlsx')
     df.to_excel(excel_path, index=False)
-    print(f"\nData saved to {excel_path}")
+    print(f"Saved consolidated data to {excel_path}")
     
-    # Create visualizations with updated save locations
+    # Create visualizations
     create_holdings_visualizations(df, reports_dir)
 
 def create_holdings_visualizations(df, reports_dir):
@@ -214,10 +262,11 @@ def create_holdings_visualizations(df, reports_dir):
     # Convert date strings to datetime and format to just YYYY-MM-DD
     df['date'] = pd.to_datetime(df['date']).dt.strftime('%Y-%m-%d')
     
-    # 1. Top 10 Holdings Over Time
-    plt.figure(figsize=(15, 8))
+    # Calculate aggregated data once for all visualizations
     df_agg = df.groupby(['date', 'name'])['value'].sum().reset_index()
     
+    # 1. Top 10 Holdings Over Time
+    plt.figure(figsize=(15, 8))
     top_companies = df_agg.groupby('name')['value'].sum().nlargest(10).index
     pivot_data = df_agg[df_agg['name'].isin(top_companies)].pivot(
         index='date', 
@@ -235,7 +284,26 @@ def create_holdings_visualizations(df, reports_dir):
     plt.savefig(os.path.join(reports_dir, 'top_holdings_trend.png'))
     plt.close()
     
-    # 2. Latest Portfolio Composition
+    # 2. Total Portfolio Value Over Time
+    plt.figure(figsize=(15, 8))
+    total_value = df_agg.groupby('date')['value'].sum()
+    
+    # Create bar chart
+    plt.bar(total_value.index, total_value.values, color='skyblue')
+    plt.title('Total Portfolio Value Over Time')
+    plt.xlabel('Date')
+    plt.ylabel('Total Value')
+    plt.xticks(rotation=45)
+    
+    # Add value labels on top of each bar
+    for i, v in enumerate(total_value.values):
+        plt.text(i, v, f'${v:,.0f}', ha='center', va='bottom')
+    
+    plt.tight_layout()
+    plt.savefig(os.path.join(reports_dir, 'total_portfolio_value.png'))
+    plt.close()
+    
+    # 3. Latest Portfolio Composition
     plt.figure(figsize=(12, 8))
     latest_date = df_agg['date'].max()
     latest_holdings = df_agg[df_agg['date'] == latest_date]
@@ -246,7 +314,7 @@ def create_holdings_visualizations(df, reports_dir):
     plt.savefig(os.path.join(reports_dir, 'portfolio_composition.png'))
     plt.close()
     
-    # 3. Holdings Changes Heatmap
+    # 4. Holdings Changes Heatmap
     plt.figure(figsize=(15, 10))
     
     pivot_all = df_agg.pivot_table(
@@ -283,9 +351,12 @@ def create_holdings_visualizations(df, reports_dir):
                 dpi=300)
     plt.close()
     
-    print("\nVisualizations saved in directory:", reports_dir)
+    print("\nVisualizations and data saved in directory:", reports_dir)
     print("Files created:")
     print(f"- {reports_dir}/holdings_analysis.xlsx")
+    print(f"- {reports_dir}/individual_filings/consolidation_verification.xlsx")
+    print(f"- {reports_dir}/individual_filings/filing_*.xlsx")
     print(f"- {reports_dir}/top_holdings_trend.png")
+    print(f"- {reports_dir}/total_portfolio_value.png")
     print(f"- {reports_dir}/portfolio_composition.png")
     print(f"- {reports_dir}/holdings_changes_heatmap.png")
