@@ -2,11 +2,6 @@
 Parse SEC JSON API for all files
 filter to certain files
 """
-
-#https://www.sec.gov/Archives/edgar/data/0001067983/000095012325002701/0000950123-25-002701-index.html
-#https://www.sec.gov/Archives/edgar/data/0001067983/000095012325002701/000095012325002701-index.htm
-
-
 import requests
 import pandas as pd
 import PySimpleGUI as sg
@@ -147,7 +142,7 @@ def runtime(cik, window):
                 if f'-CB-{accession_numbers[i]}-' in values and values[f'-CB-{accession_numbers[i]}-']
             ]
             print(f"\nSelected {len(selected_filings)} filings:")
-            combine_selected_filings(selected_filings)
+            combine_selected_filings(selected_filings, company_name)
         
         # Handle clicking on links
         if event.startswith('-LINK-'):

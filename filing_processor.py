@@ -9,6 +9,9 @@ from bs4 import BeautifulSoup
 import time
 import matplotlib.pyplot as plt
 import seaborn as sns
+import os
+from datetime import datetime
+import numpy as np
 
 def process_13f_filing(filing_info):
     """
@@ -112,13 +115,21 @@ def process_13f_filing(filing_info):
         print(f"Error processing filing {filing_info['accession']}: {str(e)}")
         return None
 
-def combine_selected_filings(selected_filings):
+def combine_selected_filings(selected_filings, company_name):
     """
     Process multiple 13F filings and create visualizations
     
     Args:
         selected_filings (list): List of filing info dictionaries
+        company_name (str): Name of the company
     """
+    # Create reports directory if it doesn't exist
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # Clean company name to be filesystem-friendly
+    clean_company_name = "".join(c for c in company_name if c.isalnum() or c in (' ', '-', '_')).strip()
+    reports_dir = f"reports_{clean_company_name}_{timestamp}"
+    os.makedirs(reports_dir, exist_ok=True)
+    
     all_holdings = []
     
     for filing in selected_filings:
@@ -176,24 +187,33 @@ def combine_selected_filings(selected_filings):
     # Convert to DataFrame
     df = pd.DataFrame(all_holdings)
     
-    # Create visualizations
-    create_holdings_visualizations(df)
+    # Update Excel save location
+    excel_path = os.path.join(reports_dir, f'holdings_analysis.xlsx')
+    df.to_excel(excel_path, index=False)
+    print(f"\nData saved to {excel_path}")
     
-    # Save to Excel for further analysis
-    timestamp = time.strftime("%Y%m%d-%H%M%S")
-    df.to_excel(f'holdings_analysis_{timestamp}.xlsx', index=False)
-    print(f"\nData saved to holdings_analysis_{timestamp}.xlsx")
+    # Create visualizations with updated save locations
+    create_holdings_visualizations(df, reports_dir)
 
-def create_holdings_visualizations(df):
+def create_holdings_visualizations(df, reports_dir):
     """Create various visualizations of the holdings data"""
     
-    # Set style
-    plt.style.use('seaborn')
+    sns.set_theme()
+    
+    # Convert date strings to datetime and format to just YYYY-MM-DD
+    df['date'] = pd.to_datetime(df['date']).dt.strftime('%Y-%m-%d')
     
     # 1. Top 10 Holdings Over Time
     plt.figure(figsize=(15, 8))
-    top_companies = df.groupby('name')['value'].sum().nlargest(10).index
-    pivot_data = df[df['name'].isin(top_companies)].pivot(index='date', columns='name', values='value')
+    df_agg = df.groupby(['date', 'name'])['value'].sum().reset_index()
+    
+    top_companies = df_agg.groupby('name')['value'].sum().nlargest(10).index
+    pivot_data = df_agg[df_agg['name'].isin(top_companies)].pivot(
+        index='date', 
+        columns='name', 
+        values='value'
+    )
+    
     pivot_data.plot(kind='line', marker='o')
     plt.title('Top 10 Holdings Over Time')
     plt.xlabel('Date')
@@ -201,43 +221,60 @@ def create_holdings_visualizations(df):
     plt.xticks(rotation=45)
     plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
     plt.tight_layout()
-    plt.savefig('top_holdings_trend.png')
+    plt.savefig(os.path.join(reports_dir, 'top_holdings_trend.png'))
+    plt.close()
     
     # 2. Latest Portfolio Composition
     plt.figure(figsize=(12, 8))
-    latest_date = df['date'].max()
-    latest_holdings = df[df['date'] == latest_date]
+    latest_date = df_agg['date'].max()
+    latest_holdings = df_agg[df_agg['date'] == latest_date]
     top_latest = latest_holdings.nlargest(10, 'value')
     plt.pie(top_latest['value'], labels=top_latest['name'], autopct='%1.1f%%')
     plt.title(f'Top 10 Holdings Composition ({latest_date})')
     plt.axis('equal')
-    plt.savefig('portfolio_composition.png')
+    plt.savefig(os.path.join(reports_dir, 'portfolio_composition.png'))
+    plt.close()
     
     # 3. Holdings Changes Heatmap
-    plt.figure(figsize=(15, 8))
-    pivot_all = df.pivot_table(
+    plt.figure(figsize=(15, 10))
+    
+    pivot_all = df_agg.pivot_table(
         index='date',
         columns='name',
         values='value',
         aggfunc='sum'
     ).fillna(0)
     
-    # Calculate percentage changes
     pct_changes = pivot_all.pct_change()
+    pct_changes = pct_changes.replace([np.inf, -np.inf], np.nan)
+    pct_changes = pct_changes[top_companies].T
     
-    # Plot heatmap for top holdings
     sns.heatmap(
-        pct_changes[top_companies].T,
+        pct_changes,
         cmap='RdYlGn',
         center=0,
         annot=True,
-        fmt='.2%'
+        fmt='.1%',
+        cbar_kws={'label': 'Quarterly Change %'},
+        vmin=-0.5,
+        vmax=0.5,
+        robust=True
     )
-    plt.title('Quarterly Holdings Changes (%)')
-    plt.tight_layout()
-    plt.savefig('holdings_changes_heatmap.png')
     
-    print("\nVisualizations saved as:")
-    print("- top_holdings_trend.png")
-    print("- portfolio_composition.png")
-    print("- holdings_changes_heatmap.png")
+    plt.title('Quarterly Holdings Changes (%)', pad=20)
+    plt.xlabel('Filing Date', labelpad=10)
+    plt.ylabel('Company', labelpad=10)
+    plt.xticks(rotation=45, ha='right')
+    plt.yticks(rotation=0)
+    plt.tight_layout()
+    plt.savefig(os.path.join(reports_dir, 'holdings_changes_heatmap.png'), 
+                bbox_inches='tight', 
+                dpi=300)
+    plt.close()
+    
+    print("\nVisualizations saved in directory:", reports_dir)
+    print("Files created:")
+    print(f"- {reports_dir}/holdings_analysis.xlsx")
+    print(f"- {reports_dir}/top_holdings_trend.png")
+    print(f"- {reports_dir}/portfolio_composition.png")
+    print(f"- {reports_dir}/holdings_changes_heatmap.png")
