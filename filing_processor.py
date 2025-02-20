@@ -123,19 +123,30 @@ def combine_selected_filings(selected_filings, company_name):
         selected_filings (list): List of filing info dictionaries
         company_name (str): Name of the company
     """
+    # Filter 13F-HR filings and notify user
+    valid_filings = [f for f in selected_filings if f['type'] == '13F-HR']
+    skipped_filings = [f for f in selected_filings if f['type'] != '13F-HR']
+    
+    if not valid_filings:
+        print("\nError: No 13F-HR filings selected. This tool only works with 13F-HR filings.")
+        return
+    
+    if skipped_filings:
+        print("\nWarning: Skipping non-13F-HR filings:")
+        for filing in skipped_filings:
+            print(f"- {filing['date']}: {filing['type']}")
+    
+    print(f"\nProcessing {len(valid_filings)} 13F-HR filings...")
+    
     # Create reports directory if it doesn't exist
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    # Clean company name to be filesystem-friendly
     clean_company_name = "".join(c for c in company_name if c.isalnum() or c in (' ', '-', '_')).strip()
     reports_dir = f"reports_{clean_company_name}_{timestamp}"
     os.makedirs(reports_dir, exist_ok=True)
     
     all_holdings = []
     
-    for filing in selected_filings:
-        if filing['type'] != '13F-HR':
-            continue
-            
+    for filing in valid_filings:  # Use filtered list instead
         print(f"\nProcessing {filing['date']}")
         
         try:

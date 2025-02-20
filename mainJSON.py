@@ -119,7 +119,7 @@ def runtime(cik, window):
     filing_window = sg.Window('Filing Selection', [
         [sg.Text("Select filings to export:")],
         [sg.Column(filing_layout, scrollable=True, vertical_scroll_only=True, size=(800, 400))],
-        [sg.Button('Export Selected'), sg.Button('Close')]
+        [sg.Button('Export Selected (13F)'), sg.Button('Close')]
     ], resizable=True, finalize=True)
     
     while True:
@@ -128,7 +128,7 @@ def runtime(cik, window):
         if event == sg.WIN_CLOSED or event == 'Close':
             break
             
-        if event == 'Export Selected':
+        if event == 'Export Selected (13F)':
             # Get all selected filings
             selected_filings = [
                 {
@@ -141,6 +141,12 @@ def runtime(cik, window):
                 for i in range(len(dates))
                 if f'-CB-{accession_numbers[i]}-' in values and values[f'-CB-{accession_numbers[i]}-']
             ]
+            
+            # Check if any 13F-HR filings are selected
+            if not any(filing['type'] == '13F-HR' for filing in selected_filings):
+                sg.popup_error("No 13F-HR filings selected", "This tool only works with 13F-HR filings. Please select at least one 13F-HR filing.")
+                continue
+            
             print(f"\nSelected {len(selected_filings)} filings:")
             combine_selected_filings(selected_filings, company_name)
         
