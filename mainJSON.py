@@ -24,7 +24,7 @@ def create_gui():
         [sg.Text("EDGAR Database Scraper")],
         [sg.Text("Enter CIK # of company"), sg.InputText(key='-CIK-', default_text='0001067983')],
         [sg.Text("Select Filing Types:")],
-        [sg.Listbox(filing_types, size=(30, 7), key='-FILINGS-', select_mode=sg.LISTBOX_SELECT_MODE_MULTIPLE, default_values=['All Filings'])],
+        [sg.Listbox(filing_types, size=(30, 7), key='-FILINGS-', select_mode=sg.LISTBOX_SELECT_MODE_MULTIPLE, default_values=['13F-HR'])],
         [sg.Button("Go"), sg.Button("Close")],
         [sg.Multiline(size=(80, 10), key='-OUTPUT-', disabled=True, reroute_stdout=True)]
     ]
@@ -118,6 +118,7 @@ def runtime(cik, window):
     # Create a new window for the filings
     filing_window = sg.Window('Filing Selection', [
         [sg.Text("Select filings to export:")],
+        [sg.Button('Select All'), sg.Button('Deselect All')],
         [sg.Column(filing_layout, scrollable=True, vertical_scroll_only=True, size=(800, 400))],
         [sg.Button('Export Selected (13F)'), sg.Button('Close')]
     ], resizable=True, finalize=True)
@@ -127,6 +128,18 @@ def runtime(cik, window):
         
         if event == sg.WIN_CLOSED or event == 'Close':
             break
+            
+        if event == 'Select All':
+            # Update all checkboxes to checked
+            for key in values:
+                if key.startswith('-CB-'):
+                    filing_window[key].update(True)
+                    
+        if event == 'Deselect All':
+            # Update all checkboxes to unchecked
+            for key in values:
+                if key.startswith('-CB-'):
+                    filing_window[key].update(False)
             
         if event == 'Export Selected (13F)':
             # Get all selected filings
