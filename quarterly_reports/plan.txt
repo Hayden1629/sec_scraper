@@ -8,6 +8,7 @@ income statement
 balance sheet
 cashflow statement
 Generate tables, which will all have different formats and dates
+currently: generated list of concepts, then we sort through and merge them
 
 From here figure out how to sort them and do DCF 
 Possible incorporation of LLM?

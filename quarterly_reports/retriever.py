@@ -11,7 +11,7 @@ import threading
 import webbrowser
 import time
 import random
-import google.generativeai as genai
+import subprocess
 
 def add_delay():
     """Add a small random delay to avoid SEC rate limiting"""
@@ -1800,119 +1800,160 @@ def export_model_to_excel(model_window):
     except Exception as e:
         messagebox.showerror("Error", f"Failed to export model: {str(e)}")
 
-def suggest_relevant_concepts(root):
-    """Use Google Gemini API to suggest relevant concepts for a DCF model"""
-    import json
-    import os
-    import requests
+# def suggest_relevant_concepts(root):
+#     """Use Google Gemini API to suggest relevant concepts for a DCF model"""
+#     import json
+#     import os
+#     import requests
     
-    if not root.company_facts:
-        messagebox.showerror("Error", "Please select a company and load XBRL data first")
-        return
+#     if not root.company_facts:
+#         messagebox.showerror("Error", "Please select a company and load XBRL data first")
+#         return
     
-    # Get API key from environment or ask user
-    api_key = "AIzaSyDdDYOFwnK0Xg993XxfIejd_WEYwgtWsWI"
-    # if not api_key:
-    #     api_key = simpledialog.askstring("API Key", "Enter your Google Gemini API Key:", show='*')
-    #     if not api_key:
-    #         return
+#     # Get API key from environment or ask user
+#     api_key = "AIzaSyDdDYOFwnK0Xg993XxfIejd_WEYwgtWsWI"
+#     # if not api_key:
+#     #     api_key = simpledialog.askstring("API Key", "Enter your Google Gemini API Key:", show='*')
+#     #     if not api_key:
+#     #         return
     
-    # Create progress window
-    progress_window = tk.Toplevel(root)
-    progress_window.title("Getting Concept Suggestions")
-    progress_window.geometry("400x150")
-    progress_window.transient(root)
+#     # Create progress window
+#     progress_window = tk.Toplevel(root)
+#     progress_window.title("Getting Concept Suggestions")
+#     progress_window.geometry("400x150")
+#     progress_window.transient(root)
     
-    progress_label = ttk.Label(progress_window, text="Analyzing company data...")
-    progress_label.pack(pady=20)
+#     progress_label = ttk.Label(progress_window, text="Analyzing company data...")
+#     progress_label.pack(pady=20)
     
-    progress_bar = ttk.Progressbar(progress_window, mode="indeterminate")
-    progress_bar.pack(fill=tk.X, padx=20, pady=10)
-    progress_bar.start()
+#     progress_bar = ttk.Progressbar(progress_window, mode="indeterminate")
+#     progress_bar.pack(fill=tk.X, padx=20, pady=10)
+#     progress_bar.start()
     
-    # Start thread to get suggestions
-    threading.Thread(target=get_suggestions_thread, 
-                    args=(root, api_key, progress_window)).start()
+#     # Start thread to get suggestions
+#     threading.Thread(target=get_suggestions_ollama_thread, 
+#                     args=(root, api_key, progress_window)).start()
 
-def get_suggestions_thread(root, api_key, progress_window):
-    """Thread function to get concept suggestions from Gemini API"""
-    try:
-        # Get all available concepts
-        facts = root.company_facts.get('facts', {})
+# def get_suggestions_ollama_thread(root, api_key, progress_window):
+#     """Thread function to get concept suggestions using Ollama instead of Gemini API"""
+#     try:
+#         # Get the progress_label widget from the progress_window
+#         for widget in progress_window.winfo_children():
+#             if isinstance(widget, ttk.Label):
+#                 progress_label = widget
+#                 break
         
-        # Get up to 200 concepts from each taxonomy to keep request size reasonable
-        all_concepts = []
-        for taxonomy in facts:
-            concepts = list(facts[taxonomy].keys())[:200]
-            all_concepts.extend([f"{taxonomy}:{concept}" for concept in concepts])
+#         # Get all available concepts
+#         facts = root.company_facts.get('facts', {})
         
-        # Create prompt for Gemini
-        prompt = f"""
-        I need to build a discounted cash flow (DCF) model for financial analysis.
-        Here are the available XBRL concepts from SEC filings:
+#         # Get up to 200 concepts from each taxonomy to keep request size reasonable
+#         all_concepts = []
+#         for taxonomy in facts:
+#             concepts = list(facts[taxonomy].keys())[:200]
+#             all_concepts.extend([f"{taxonomy}:{concept}" for concept in concepts])
         
-        {', '.join(all_concepts[:500])}  # Limit to 500 concepts max
+#         # Create prompt for Ollama
+#         prompt = f"""
+#         I need to build a discounted cash flow (DCF) model for financial analysis.
+#         Here are the available XBRL concepts from SEC filings:
         
-        Please identify the most relevant concepts for a DCF model, including metrics for:
-        1. Revenue and growth rates
-        2. Margins and profitability
-        3. Capital expenditures
-        4. Working capital
-        5. Debt and interest expenses
-        6. Tax rates
-        7. Cash flow items
+#         {', '.join(all_concepts[:500])}  # Limit to 500 concepts max
         
-        Return ONLY a JSON list of the most relevant concept names (no explanations), like:
-        ["us-gaap:Revenue", "us-gaap:NetIncomeLoss", "us-gaap:OperatingIncomeLoss"]
+#         Please identify the most relevant concepts for a DCF model, including metrics for:
+#         1. Revenue and growth rates
+#         2. Margins and profitability
+#         3. Capital expenditures
+#         4. Working capital
+#         5. Debt and interest expenses
+#         6. Tax rates
+#         7. Cash flow items
         
-        Important: Return valid JSON only (double quotes for strings, square brackets).
-        """
+#         Return ONLY a JSON list of the most relevant concept names (no explanations), like:
+#         ["us-gaap:Revenue", "us-gaap:NetIncomeLoss", "us-gaap:OperatingIncomeLoss"]
         
-        # Configure the API
-        import google.generativeai as genai
-        genai.configure(api_key=api_key)
+#         Important: Return valid JSON only (double quotes for strings, square brackets).
+#         """
         
-        # Create a model instance
-        model = genai.GenerativeModel('gemini-1.5-flash-8b')
+#         # Use requests to communicate with Ollama running locally
         
-        # Generate content with the model
-        response = model.generate_content(
-            prompt,
-            generation_config={
-                "temperature": 0.2,
-                "top_p": 0.8,
-                "top_k": 40
-            }
-        )
+#         # Update the API call to use Ollama
+#         progress_window.after(0, lambda: progress_label.config(text="Sending request to Ollama..."))
         
-        # Process the response
-        text_response = response.text
+#         # You might want to let users configure this
+#         model = "gemma3:4b"  
+#         try:
+#             print("Calling Ollama model...")
+#             response = subprocess.run(
+#                 ["ollama", "run", model, prompt],
+#                 capture_output=True,
+#                 text=True,
+#                 timeout=60  # Add timeout to prevent hanging
+#             )
+#             text_response = response.stdout
+#             print(f"Received response from Ollama model")
+#         except Exception as e:
+#             print(f"Error calling Ollama: {e}")
+#             raise
+#         finally:
+#             print(f"Stopping Ollama model {model}...")
+#             try:
+#                 stop_response = subprocess.run(
+#                     ["ollama", "stop", model],
+#                     capture_output=True,
+#                     text=True,
+#                     timeout=10  # Short timeout for stop command
+#                 )
+#                 if stop_response.returncode != 0:
+#                     print(f"Warning: Could not stop Ollama model: {stop_response.stderr}")
+#                 else:
+#                     print(f"Successfully stopped Ollama model {model}")
+#             except Exception as stop_error:
+#                 print(f"Error stopping Ollama model: {stop_error}")
         
-        # Extract JSON part from text response
-        json_start = text_response.find('[')
-        json_end = text_response.rfind(']') + 1
+#         # Process the text response from Ollama
+#         progress_window.after(0, lambda: progress_label.config(text="Processing response..."))
         
-        if json_start != -1 and json_end != -1:
-            json_str = text_response[json_start:json_end]
-            suggested_concepts = json.loads(json_str)
-        else:
-            raise ValueError("Could not extract JSON from response")
+#         # Extract JSON part from text response
+#         json_start = text_response.find('[')
+#         json_end = text_response.rfind(']') + 1
         
-        # Store suggestions in root
-        root.suggested_concepts = suggested_concepts
+#         if json_start != -1 and json_end != -1:
+#             json_str = text_response[json_start:json_end]
+#             try:
+#                 suggested_concepts = json.loads(json_str)
+#             except json.JSONDecodeError:
+#                 # If JSON parsing fails, try to clean up the string
+#                 json_str = json_str.replace("'", '"')  # Replace single quotes with double quotes
+#                 suggested_concepts = json.loads(json_str)
+#         else:
+#             # If can't find json brackets, try to handle the case where Ollama might return
+#             # just a comma-separated list or other format
+            
+#             # Look for what might be concepts in the response
+#             import re
+#             # Look for patterns like "us-gaap:Revenue"
+#             potential_concepts = re.findall(r'["\']?([a-z-]+:[A-Za-z]+)["\']?', text_response)
+            
+#             if potential_concepts:
+#                 suggested_concepts = potential_concepts
+#             else:
+#                 raise ValueError("Could not extract concepts from response")
         
-        # Show success message and close progress window
-        progress_window.after(0, progress_window.destroy)
-        progress_window.after(0, lambda: messagebox.showinfo(
-            "Suggestions Ready", 
-            f"Found {len(suggested_concepts)} relevant concepts for DCF modeling.\n"
-            "They will be available in the model builder."
-        ))
+#         # Store suggestions in root
+#         root.suggested_concepts = suggested_concepts
         
-    except Exception as e:
-        error_msg = f"Error getting suggestions: {str(e)}"
-        progress_window.after(0, progress_window.destroy)
-        progress_window.after(0, lambda: messagebox.showerror("Error", error_msg))
+#         # Show success message and close progress window
+#         progress_window.after(0, progress_window.destroy)
+#         progress_window.after(0, lambda: messagebox.showinfo(
+#             "Suggestions Ready", 
+#             f"Found {len(suggested_concepts)} relevant concepts for DCF modeling.\n"
+#             "They will be available in the model builder."
+#         ))
+        
+#     except Exception as e:
+#         error_msg = f"Error getting suggestions: {str(e)}"
+#         progress_window.after(0, progress_window.destroy)
+#         progress_window.after(0, lambda: messagebox.showerror("Error", error_msg))
 
 def export_all_concepts(root):
     """Export all available concepts to a text file"""
