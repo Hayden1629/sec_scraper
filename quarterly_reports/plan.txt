@@ -1,0 +1,16 @@
+get data from sec api
+https://www.youtube.com/watch?v=Wr1NoM3JkTo&t=336s
+I want dropdown list of firm names corresponding to CIF numbers and searching function
+https://www.sec.gov/search-filings/edgar-application-programming-interfaces
+
+pull 10k/10q tables
+income statement
+balance sheet
+cashflow statement
+Generate tables, which will all have different formats and dates
+
+From here figure out how to sort them and do DCF 
+Possible incorporation of LLM?
+DCF analysis, gives predicted price for stock
+auto alerts for stocks very far outside their dcf price
+"The market is there to serve you, not instruct you" - buffet

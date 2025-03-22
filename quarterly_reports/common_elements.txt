@@ -1,0 +1,66 @@
+Prompt: 
+Given the SEC requirements for 10k reports, tell me what I can expect will be the SAME across all different sectors and companies
+
+# Common Elements Across All 10-K Reports
+
+When scraping 10-K reports from the SEC database, you can rely on certain standardized elements that remain consistent across all companies and sectors due to SEC regulations:
+
+## Standard Document Structure
+
+- **Item Numbers and Titles**: All 10-Ks follow the same numbered item format (Items 1-15) with standardized section titles:
+  - Item 1: Business
+  - Item 1A: Risk Factors
+  - Item 1B: Unresolved Staff Comments 
+  - Item 2: Properties
+  - Item 3: Legal Proceedings
+  - Item 4: Mine Safety Disclosures (if applicable)
+  - Item 5: Market Information
+  - Item 6: [Reserved]
+  - Item 7: Management's Discussion and Analysis (MD&A)
+  - Item 7A: Quantitative and Qualitative Disclosures about Market Risk
+  - Item 8: Financial Statements and Supplementary Data
+  - Item 9: Changes in Accounting
+  - Items 10-14: Corporate governance information
+  - Item 15: Exhibits and Financial Statement Schedules
+
+- **Required Financial Statements**: All 10-Ks must include:
+  - Balance Sheet (for two comparative years)
+  - Income Statement (for three comparative years)
+  - Cash Flow Statement (for three comparative years)
+  - Statement of Shareholders' Equity
+
+## Standardized XBRL Elements
+
+- **Base XBRL Taxonomy**: Core financial concepts use standardized XBRL tags across all filings
+- **Document and Entity Information**: Standard tags for company identifiers, filing dates, etc.
+- **Context References**: Standardized date/period references in XBRL
+
+## Metadata and Filing Information
+
+- **SEC Header**: Contains standardized company information (CIK number, fiscal year, filing date)
+- **EDGAR Submission Headers**: XML metadata about the submission
+- **Exhibit Index**: Standardized format for listing attached exhibits
+
+## Required Disclosures
+
+- **Certifications**: Standard CEO/CFO certifications (SOX Section 302 and 906)
+- **Auditor's Report**: Required format and content (will be in a standardized format post-2020)
+- **Disclosure Controls and Procedures**: Standard language and format
+- **Critical Accounting Policies**: Required section with specific elements
+
+## Document Format Standards
+
+- **Machine-Readable Structure**: HTML/XML-based document structure
+- **Table Formats**: Standardized table structures for financial data
+- **Signature Block**: Standard format for signatures and dates
+
+Even with these standardized elements, be prepared for differences in:
+- The specific language used within each required section
+- The order and presentation of subsections within each item
+- The depth and detail of information provided
+- Table structures and formatting preferences
+- The use of company-specific XBRL extension taxonomies
+
+These consistent elements provide reliable anchor points for your parser regardless of industry or company size, which can form the foundation of your scraping strategy.
+
+From Claude.ai
