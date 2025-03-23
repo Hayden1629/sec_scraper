@@ -1811,7 +1811,7 @@ def export_model_to_excel(model_window):
 #         return
     
 #     # Get API key from environment or ask user
-#     api_key = "AIzaSyDdDYOFwnK0Xg993XxfIejd_WEYwgtWsWI"
+#     api_key = ""
 #     # if not api_key:
 #     #     api_key = simpledialog.askstring("API Key", "Enter your Google Gemini API Key:", show='*')
 #     #     if not api_key:
